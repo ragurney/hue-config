@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Hue Config
+
+Mappings:
+  Variables:
+    AlexaSkillKit:
+      Id: <your skill id here>
+
+Globals:
+  Function:
+    Timeout: 60
+
+Resources:
+  Alexa:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: alexa
+      Runtime: go1.x
+      Tracing: Active
+  AlexaAskPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: Alexa
+    Properties:
+      Action: lambda:InvokeFunction
+      EventSourceToken: !FindInMap
+        - Variables
+        - AlexaSkillKit
+        - Id
+      FunctionName: !GetAtt Alexa.Arn
+      Principal: alexa-connectedhome.amazon.com
+
+  Authentication:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: authentication
+      Runtime: go1.x
+      Tracing: Active
+      Events:
+        AuthenticationHandler:
+          Type: Api
+          Properties:
+            Path: "/authenticate"
+            Method: POST
+
+Outputs:
+  Alexa:
+    Description: "Alexa Lambda Function ARN"
+    Value: !GetAtt Alexa.Arn
+
+  AlexaIamRole:
+    Description: "Implicit IAM Role created for Alexa function"
+    Value: !GetAtt AlexaRole.Arn
+
+  AuthenticationAPI:
+    Description: "API Gateway endpoint URL for Prod for the Alexa Skill 'Access Token URI'"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/authenticate/"
