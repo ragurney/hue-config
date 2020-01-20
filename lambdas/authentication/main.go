@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 
@@ -15,9 +17,9 @@ import (
 
 // Hue token URLs
 const (
-	HueAPIBase    string = "https://api.meethue.com/"
-	HueTokenURL   string = "https://api.meethue.com/oauth2/token"
-	HueRefreshURL string = "https://api.meethue.com/oauth2/refresh"
+	HueAPITarget   string = "https://api.meethue.com/"
+	HueTokenPath   string = "/oauth2/token"
+	HueRefreshPath string = "/oauth2/refresh"
 
 	AuthGrantType    string = "authorization_code"
 	RefreshGrantType string = "refresh_token"
@@ -28,71 +30,88 @@ var (
 	ErrUnrecognizedGrantType = errors.New("Unrecognized `grant_type` in Alexa token request")
 )
 
+// getHueForwardURI gets the correct URI to pass the authorization request on to based on the grant_type of the request
+func getHueForwardPath(req *http.Request) (string, error) {
+	if err := req.ParseForm(); err != nil {
+		return "", fmt.Errorf("Error parsing form: %s", err)
+	}
+
+	gt := req.Form.Get("grant_type")
+
+	log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
+		Msgf("Extracted %s grant type from request", gt)
+
+	switch gt {
+	case AuthGrantType:
+		log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
+			Msgf("Handling %s grant type...", AuthGrantType)
+
+		return HueTokenPath, nil
+	case RefreshGrantType:
+		log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
+			Msgf("Handling %s grant type...", RefreshGrantType)
+
+		return HueRefreshPath, nil
+	default:
+		return "", ErrUnrecognizedGrantType
+	}
+}
+
+// serveReverseProxy sends a proxy request to the target, appending the req path and oreq host as the forwarded host
+func serveReverseProxy(target string, res http.ResponseWriter, req *http.Request) error {
+	baseURL, err := url.Parse(target)
+	if err != nil {
+		return err
+	}
+
+	rp := httputil.NewSingleHostReverseProxy(baseURL) // Set up reverse proxy to Hue API
+
+	// Update headers to allow for SSL redirection
+	req.Header.Set("X-Forwarded-Host", req.URL.Host)
+	req.Host = baseURL.Host
+
+	log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
+		Msgf("Sending proxied request to %v...", req.URL)
+
+	rp.ServeHTTP(res, req)
+
+	return nil
+}
+
 func handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	log.Debug().Str("Handler", "Authentication").Str("Function", "handler").Msg("Got authentication request...")
 
 	// Convert incoming ProxyRequest to http.Request
 	ra := core.RequestAccessor{}
-	httpReq, err := ra.ProxyEventToHTTPRequest(request)
+	or, err := ra.ProxyEventToHTTPRequest(request)
 	if err != nil {
-		return core.GatewayTimeout(), core.NewLoggedError("Could not convert proxy event to request: %v", err)
-	}
-
-	if err := httpReq.ParseForm(); err != nil {
-		return core.GatewayTimeout(), core.NewLoggedError("Error parsing form: %s", err)
-	}
-
-	gt := httpReq.Form.Get("grant_type")
-	httpReq.PostForm.Get("grant_type")
-
-	log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
-		Msgf("Extracted %s grant type from request", gt)
-
-	// Determine if Alexa is trying to get a new token or refreshing one
-	var forwardPath string
-	switch gt {
-	case AuthGrantType:
-		log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
-			Msgf("Handling %s grant type...", AuthGrantType)
-		forwardPath = HueTokenURL
-	case RefreshGrantType:
-		log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
-			Msgf("Handling %s grant type...", RefreshGrantType)
-		forwardPath = HueRefreshURL
-	default:
-		return events.APIGatewayProxyResponse{}, ErrUnrecognizedGrantType
+		return core.GatewayTimeout(), core.NewLoggedError("Could not convert proxy event to request: %s", err)
 	}
 
 	// Clone incoming authentication request
-	clone := httpReq.Clone(context.TODO())
-	clone.Body, err = httpReq.GetBody()
+	cr := or.Clone(context.TODO())
+	cr.Body, err = or.GetBody()
 	if err != nil {
-		return core.GatewayTimeout(), core.NewLoggedError("Error while cloning auth request %v", err)
+		return core.GatewayTimeout(), core.NewLoggedError("Error while cloning auth request %s", err)
 	}
 
-	// Preserve received request, changing URL to correct Hue API URL
-	forwardURL, err := url.ParseRequestURI(forwardPath)
+	// Preserve received request, changing path to matching Hue authentication path
+	cr.URL.Path, err = getHueForwardPath(or)
 	if err != nil {
-		return core.GatewayTimeout(), core.NewLoggedError("Error while creating new forward URL %v", err)
+		return core.GatewayTimeout(), core.NewLoggedError("Error while getting Hue forward URI %s", err)
 	}
-	clone.URL = forwardURL
 
-	// Proxy request to Hue resource server
 	w := core.NewProxyResponseWriter()
-	baseURL, _ := url.Parse(HueAPIBase)
-	rp := httputil.NewSingleHostReverseProxy(baseURL) // Set up reverse proxy to Hue API
 
-	// Update headers to allow for SSL redirection
-	clone.Header.Set("X-Forwarded-Host", httpReq.Header.Get("Host"))
-	clone.Host = baseURL.Host
+	// Proxy request to Hue resource server, swapping out host to Hue API host
+	if err = serveReverseProxy(HueAPITarget, w, cr); err != nil {
+		return core.GatewayTimeout(), core.NewLoggedError("Error while proxying request to Hue: %s", err)
+	}
 
-	log.Debug().Str("Handler", "Authentication").Str("Function", "handler").
-		Msg("Sending authentication request to Hue...")
-	rp.ServeHTTP(w, clone)
-
+	// Convert http.Response to lambda gateway response
 	resp, err := w.GetProxyResponse()
 	if err != nil {
-		return core.GatewayTimeout(), core.NewLoggedError("Error while generating proxy response: %v", err)
+		return core.GatewayTimeout(), core.NewLoggedError("Error while generating proxy response: %s", err)
 	}
 
 	if resp.StatusCode != 200 {
