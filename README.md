@@ -1,7 +1,6 @@
 # hue-config
 
-`hue-config` is a collection of scripts which define custom animations for your Hue lights via Alexa Smart Home
-'devices'.
+`hue-config` allows the creation of custom scripts to control your Hue lights. You can then add these to the Alexa skill as custom 'devices' (see [Sunrise](./animations/sunrise/README.md) as an example). All hosted on AWS as lambda functions, defined and deployed using AWS SAM.
 
 ## Supported Animations
 
