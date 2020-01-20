@@ -1,3 +1,6 @@
+// Package main contains logic needed to make Alexa token auth compatible with the Hue API. It takes in the Alexa
+// authentication request and forwards it to either the Hue /token or /refresh endpoint depending on the grant_type
+// then proxies back the response
 package main
 
 import (

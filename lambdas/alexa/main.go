@@ -1,3 +1,5 @@
+// Package main is the main driver of the 'hue-config' Alexa skill. Here is where you can set up all custom Alexa
+// Smart Home devices used to trigger your custom animations.
 package main
 
 import (
