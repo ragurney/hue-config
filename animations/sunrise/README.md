@@ -9,7 +9,4 @@ https://streamable.com/wb1rr
 - Duration: to change the duration of the sunrise, change the value of the `EndTransitionTime` variable
   (multiples of 100ms).
 - Lights affected: This is currently hardcoded to apply the sunrise to the first group defined, whatever that is.
-  To change this behavior, you will have to edit the code under the comment:
-  ```
-  // Sends sunrise command to the first group, whatever that is. Can customize this to your own needs.
-  ```
+  To change this behavior, you will have to edit the code [here](https://github.com/ragurney/hue-config/blob/b982267ba1168cb99417ecf2a58fb65dce85c6b8/animations/sunrise/sunrise.go#L69).
