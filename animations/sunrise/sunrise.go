@@ -66,15 +66,28 @@ func (mockHandler *sunriseHandler) SetValue(val interface{}, token string) error
 		// \[T]/
 		// Sends sunrise command to the first group, whatever that is. Can customize this to your own needs.
 		// TODO: make configurable via Alexa Smart Home, either create custom device or add config options to 'light'
-		groups[0].SetState(huego.State{
+		err = groups[0].SetState(huego.State{
 			On:             true,
 			TransitionTime: StartTransitionTime,
 			Bri:            StartBrightness,
 			Hue:            StartHue,
 			Sat:            StartSat,
 		})
+		if err != nil {
+			log.Error().Str("Handler", "Sunrise").Str("Function", "SetValue").Msgf("Error setting sunrise start %s", err)
+			return err
+		}
 		time.Sleep(1 * time.Second) // Give Hue time to do its thing (group calls need 1 second to propagate)
-		groups[0].SetState(huego.State{TransitionTime: EndTransitionTime, Bri: EndBrightness, Hue: EndHue, Sat: EndSat})
+		err = groups[0].SetState(huego.State{
+			TransitionTime: EndTransitionTime,
+			Bri:            EndBrightness,
+			Hue:            EndHue,
+			Sat:            EndSat,
+		})
+		if err != nil {
+			log.Error().Str("Handler", "Sunrise").Str("Function", "SetValue").Msgf("Error setting sunrise transition %s", err)
+			return err
+		}
 	}
 
 	return nil

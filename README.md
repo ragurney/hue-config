@@ -1,4 +1,4 @@
-# hue-config
+# hue-config [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/ragurney/hue-config) [![GolangCI](https://img.shields.io/badge/GolangCI-A+-9cf)](https://golangci.com)
 
 `hue-config` allows the creation of custom scripts to control your Hue lights. You can then add these to the Alexa skill as custom 'devices' (see [Sunrise](./animations/sunrise/README.md) as an example). All hosted on AWS as lambda functions, defined and deployed using AWS SAM.
 
@@ -60,7 +60,7 @@ the capability to run your functions locally.
 1. On the Account Linking page, we can fill out these fields using your Hue Apps information:
 
    1. Authorization URI: The URI to kick off the oAuth process with Hue. This is a URL with the following form:
-   
+
       ```
       https://api.meethue.com/oauth2/auth?clientid=<your_hue_clientid>&response_type=code&state=<random string>&appid=<your hue app name>&deviceid=<any unique name>&devicename=<any unique name>
 
