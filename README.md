@@ -6,6 +6,8 @@
 
 - [Sunrise](./animations/sunrise/README.md)
 
+*Note* this is really only transitions or other one-off api calls. TODO: integrate a full animation using the [entertainment SDK](https://developers.meethue.com/develop/hue-entertainment/hue-edk-effect-creation/).
+
 ## Setup
 
 The initial setup process might be a little time-consuming -- particularly if you do not have prior experience with
